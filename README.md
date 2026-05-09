@@ -26,7 +26,24 @@ gateway-1  | INFO:     Uvicorn running on http://0.0.0.0:8000
 | Interactive API docs | http://localhost:8000/docs |
 | RabbitMQ management UI | http://localhost:15672 (guest / guest) |
 
-To stop: `docker-compose down`
+**To stop:**
+```bash
+docker-compose down
+```
+
+**If you get a "port already allocated" error** (e.g. port 5672 or 15672 in use from a previous run):
+```bash
+docker-compose down           # stop and remove this project's containers
+docker ps -a                  # find any leftover containers using the port
+docker rm -f <container-id>   # remove them
+docker-compose up --build     # retry
+```
+
+**Full reset** (removes containers, volumes, and built images — starts completely fresh):
+```bash
+docker-compose down --volumes --rmi all
+docker-compose up --build
+```
 
 ---
 
