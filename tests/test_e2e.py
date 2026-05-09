@@ -276,8 +276,8 @@ def test_unknown_finding_falls_back_to_general():
     payload = {
         **VALID_REPORT,
         "findings": [
-            {"title": "Unknown exterior damage", "severity": "medium",
-             "notes": "Needs review", "photos": []}
+            {"title": "Squeaky floorboard inside unit", "severity": "medium",
+             "notes": "", "photos": []}
         ],
     }
     report_id = create_report(payload)

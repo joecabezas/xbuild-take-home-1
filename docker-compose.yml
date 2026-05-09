@@ -54,14 +54,16 @@ services:
   worker-matcher:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: workers/matcher/Dockerfile
       args:
-        WORKER: matcher
+        MATCHER_MODEL: all-MiniLM-L6-v2
     depends_on:
       rabbitmq:
         condition: service_healthy
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - MATCHER_MODEL=all-MiniLM-L6-v2
+      - SIMILARITY_THRESHOLD=0.35
     restart: on-failure
 
   worker-pricer:

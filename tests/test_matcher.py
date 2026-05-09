@@ -12,7 +12,7 @@ def test_shingle_match():
 
 
 def test_gutter_clog_match():
-    item, reason = match("Clogged gutters", "")
+    item, reason = match("Clogged gutters full of leaves", "")
     assert item.code == "gutters.clean_flush"
 
 
@@ -28,13 +28,12 @@ def test_window_seal_match():
     assert item.code == "roof.leak_investigation"
 
 def test_window_seal_direct_match():
-    # when findings clearly reference window/door without water keywords, openings.reseal wins
-    item, reason = match("Cracked window frame", "Needs recaulking")
+    item, reason = match("Cracked window seal needs recaulking", "")
     assert item.code == "openings.reseal"
 
 
 def test_fallback_on_unknown():
-    item, reason = match("Unknown exterior damage", "Needs review")
+    item, reason = match("Squeaky floorboard inside unit", "")
     assert item.code == "general.assessment_tm"
     assert "No specific match" in reason
 

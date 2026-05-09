@@ -4,63 +4,63 @@
     "category": "roofing",
     "description": "Investigate and stop active leak; seal/repair likely entry points.",
     "base_price": 650,
-    "keywords": ["leak", "water", "wet", "drip", "seep", "stain"]
+    "keywords": ["leak", "water", "wet", "drip", "seep", "stain", "moisture", "infiltration", "intrusion", "damage"]
   },
   {
     "code": "roof.patch_shingles",
     "category": "roofing",
     "description": "Replace missing/damaged shingles in affected areas.",
     "base_price": 900,
-    "keywords": ["shingle", "shingles", "missing", "damaged", "blow", "blown"]
+    "keywords": ["shingle", "shingles", "missing", "damaged", "blow", "blown", "crack", "cracked", "curling", "lifted", "granule"]
   },
   {
     "code": "roof.reflash_penetration",
     "category": "roofing",
     "description": "Repair/replace flashing at affected areas to restore watertightness.",
     "base_price": 750,
-    "keywords": ["flashing", "flash", "penetration", "chimney"]
+    "keywords": ["flashing", "flash", "penetration", "chimney", "skylight", "pipe", "boot", "collar", "valley"]
   },
   {
     "code": "roof.vent_repair",
     "category": "roofing",
     "description": "Inspect and repair/replace roof vent components as needed.",
     "base_price": 400,
-    "keywords": ["vent", "ventilation", "soffit"]
+    "keywords": ["vent", "ventilation", "soffit", "attic", "airflow", "intake", "exhaust", "ridge"]
   },
   {
     "code": "gutters.clean_flush",
     "category": "gutters",
     "description": "Clean and flush gutters and downspouts.",
     "base_price": 250,
-    "keywords": ["gutter", "clog", "clogged", "debris", "leaves", "flush", "downspout"]
+    "keywords": ["gutter", "clog", "clogged", "debris", "leaves", "flush", "downspout", "drain", "overflow", "blockage", "buildup"]
   },
   {
     "code": "gutters.resecure",
     "category": "gutters",
     "description": "Re-secure gutters; adjust hangers and slope for proper drainage.",
     "base_price": 350,
-    "keywords": ["gutter", "loose", "pulling", "detach", "sag", "sagging", "fascia"]
+    "keywords": ["gutter", "loose", "pulling", "detach", "sag", "sagging", "fascia", "slope", "hanger", "pitch", "drainage", "pulling away"]
   },
   {
     "code": "siding.repair_local",
     "category": "siding",
     "description": "Repair/replace localized siding/trim damage.",
     "base_price": 700,
-    "keywords": ["siding", "trim", "panel", "board"]
+    "keywords": ["siding", "trim", "panel", "board", "crack", "cracked", "rot", "rotten", "warped", "dent", "gap", "hole"]
   },
   {
     "code": "openings.reseal",
     "category": "windows_doors",
     "description": "Reseal/repair window/door trim to reduce water/air intrusion.",
     "base_price": 450,
-    "keywords": ["window", "door", "seal", "frame", "caulk"]
+    "keywords": ["window", "door", "seal", "frame", "caulk", "gap", "draft", "leaking", "weatherstrip", "sill"]
   },
   {
     "code": "exterior.paint_prep_spot",
     "category": "paint",
     "description": "Prep and spot-paint affected exterior areas to match existing finish.",
     "base_price": 400,
-    "keywords": ["paint", "peel", "peeling", "fade", "discolor"]
+    "keywords": ["paint", "peel", "peeling", "fade", "discolor", "chipping", "stain", "mold", "mildew", "weathered"]
   },
   {
     "code": "general.assessment_tm",

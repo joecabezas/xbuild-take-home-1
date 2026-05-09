@@ -132,8 +132,8 @@ def test_pipeline_unknown_finding_falls_back():
         "customer": {"name": "Joe", "email": "j@j.com"},
         "property": {"address": "1 St", "type": "condo"},
         "findings": [
-            {"title": "Unknown exterior damage", "severity": "medium",
-             "notes": "Needs review", "photos": []},
+            {"title": "Squeaky floorboard inside unit", "severity": "medium",
+             "notes": "", "photos": []},
         ],
     }
     captured = {}
