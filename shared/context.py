@@ -26,7 +26,7 @@ class PipelineContext:
     proposal_draft: dict[str, Any] | None = None
 
     status: str = "pending"   # pending | failed | complete
-    error: str | None = None
+    errors: list[dict[str, str]] = field(default_factory=list)  # [{"field": ..., "message": ...}]
 
     def to_json(self) -> bytes:
         return json.dumps(asdict(self)).encode()

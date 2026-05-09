@@ -159,8 +159,10 @@ def test_pipeline_validation_error_raises():
     import pytest
     raw = {**VALID_RAW, "findings": []}
     ctx = PipelineContext(job_id="j", report_id="r", raw_input=raw)
-    with pytest.raises(ValueError, match="findings"):
+    with pytest.raises(ValueError) as exc:
         validate(ctx)
+    fields = [e["field"] for e in exc.value.args[0]]
+    assert "findings" in fields
 
 
 def test_pipeline_context_fields_populated_at_each_stage():

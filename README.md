@@ -8,7 +8,6 @@ A backend service that accepts field reports from a mobile app and generates str
 
 **Requires:** Docker and Docker Compose.
 
--- are this steps correct?
 ```bash
 git clone <repo-url>
 cd take_home_1
@@ -157,16 +156,21 @@ curl -s http://localhost:8000/reports/rpt_9c713301319f/proposals
 The pipeline validates input before processing. Invalid reports return HTTP 422:
 
 ```bash
-# Missing customer name
+# Missing customer name + empty findings
 curl -s -X POST http://localhost:8000/reports \
   -H "Content-Type: application/json" \
-  -d '{"customer": {"name": "", "email": "x@x.com"}, "property": {"address": "1 St", "type": "house"}, "findings": []}' \
-  | xargs -I{} sh -c 'echo "{}"'
-# Report is stored, validation fires on generate-proposal:
+  -d '{"customer": {"name": "", "email": "x@x.com"}, "property": {"address": "1 St", "type": "house"}, "findings": []}'
+# → {"reportId": "rpt_..."}
+# Report is stored; validation fires on generate-proposal:
 
 curl -s -X POST http://localhost:8000/reports/rpt_.../generate-proposal
--- lets change this to return a list of errors instead of a single string, and include which field is invalid. This is more extensible as we add more validation rules.
-# → HTTP 422: {"detail": "customer.name is required; findings must be a non-empty array"}
+# → HTTP 422:
+# {
+#   "detail": [
+#     {"field": "customer.name", "message": "is required"},
+#     {"field": "findings", "message": "must be a non-empty array"}
+#   ]
+# }
 ```
 
 Severity values must be `low`, `medium`, or `high`. Any other value returns 422.
@@ -185,16 +189,20 @@ docker-compose up --scale worker-matcher=3
 
 ### Unit + integration tests (no Docker required)
 
--- are this instructions correct? do we need to set up a virtualenv or anything first?
+Create a virtualenv, install test dependencies, then run:
+
 ```bash
-pip install httpx pika pytest fastapi pydantic
+python -m venv .venv && source .venv/bin/activate
+pip install httpx pika pytest fastapi pydantic aio-pika
 python -m pytest tests/ --ignore=tests/test_e2e.py -v
 ```
 
 ### End-to-end tests (requires the stack to be running)
 
--- same as above, do we need to set up a virtualenv or anything first?
+With the stack already running (`docker-compose up --build`), in a separate terminal:
+
 ```bash
+source .venv/bin/activate   # same venv as above
 python -m pytest tests/test_e2e.py -v
 ```
 
@@ -220,8 +228,7 @@ The two are linked by `report_id` but intentionally separate: a report is ground
 
 **Proposals are append-only.** Each call to `POST /reports/:id/generate-proposal` inserts a new proposal row with an incrementing version number. Old proposals remain retrievable by their ID. The `GET /reports/:id/proposals` endpoint lists the full history.
 
--- I dont like this, lets move the catalog to json or something, so non-devs can edit it without a deploy
-**The catalog is code, not data.** The 10 catalog items and their keyword trigger lists live in `workers/matcher/catalog.py`. Changing the catalog requires a deploy, but the matching rules are version-controlled alongside the code that uses them.
+**The catalog is data, not code.** The 10 catalog items and their keyword trigger lists live in `workers/matcher/catalog.json`. Non-developers can edit the catalog and redeploy without touching Python. The matching rules remain version-controlled alongside the code that uses them.
 
 **Photos are strings throughout.** No binary storage, no S3 — a photo reference is just a string in the findings array. The photo count affects pricing (via the photo modifier), nothing more.
 
@@ -231,14 +238,14 @@ The two are linked by `report_id` but intentionally separate: a report is ground
 
 Each pipeline step runs as an independent Docker container consuming from its own RabbitMQ queue:
 
--- lets change this to a mermaid diagram
-```
-gateway → [validate] → ValidatorWorker
-                     → [normalize] → NormalizerWorker
-                                   → [match] → MatcherWorker
-                                             → [price] → PricerWorker
-                                                        → [assemble] → AssemblerWorker
-                                                                      → [reply_{job_id}] → gateway
+```mermaid
+flowchart LR
+    GW[gateway] -->|validate| V[ValidatorWorker]
+    V -->|normalize| N[NormalizerWorker]
+    N -->|match| M[MatcherWorker]
+    M -->|price| P[PricerWorker]
+    P -->|assemble| A[AssemblerWorker]
+    A -->|reply_job_id| GW
 ```
 
 The `PipelineContext` dataclass is the message body — it carries all state as a JSON-serializable dict. Each worker reads from it, enriches it, and publishes it to the next queue. Workers never share memory or call each other directly.

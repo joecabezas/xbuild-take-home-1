@@ -13,26 +13,29 @@ def process(ctx: PipelineContext) -> PipelineContext:
 
     customer = r.get("customer") or {}
     if not customer.get("name", "").strip():
-        errors.append("customer.name is required")
+        errors.append({"field": "customer.name", "message": "is required"})
     if not customer.get("email", "").strip():
-        errors.append("customer.email is required")
+        errors.append({"field": "customer.email", "message": "is required"})
 
     prop = r.get("property") or {}
     if not prop.get("address", "").strip():
-        errors.append("property.address is required")
+        errors.append({"field": "property.address", "message": "is required"})
     if not prop.get("type", "").strip():
-        errors.append("property.type is required")
+        errors.append({"field": "property.type", "message": "is required"})
 
     findings = r.get("findings")
     if not findings:
-        errors.append("findings must be a non-empty array")
+        errors.append({"field": "findings", "message": "must be a non-empty array"})
     else:
         for i, f in enumerate(findings):
             if f.get("severity", "").lower() not in VALID_SEVERITIES:
-                errors.append(f"findings[{i}].severity must be low, medium, or high")
+                errors.append({
+                    "field": f"findings[{i}].severity",
+                    "message": "must be low, medium, or high",
+                })
 
     if errors:
-        raise ValueError("; ".join(errors))
+        raise ValueError(errors)
 
     ctx.validated = True
     return ctx
@@ -49,9 +52,9 @@ def callback(ch, method, _properties, body):
             properties=pika.BasicProperties(delivery_mode=2),
         )
         ch.basic_ack(delivery_tag=method.delivery_tag)
-    except Exception as e:
+    except ValueError as e:
         ctx.status = "failed"
-        ctx.error = str(e)
+        ctx.errors = e.args[0]
         ch.basic_publish(
             exchange="",
             routing_key=f"reply_{ctx.job_id}",

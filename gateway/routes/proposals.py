@@ -68,7 +68,7 @@ async def generate_proposal(report_id: str):
         await connection.close()
 
     if result_ctx.status == "failed":
-        raise HTTPException(status_code=422, detail=result_ctx.error)
+        raise HTTPException(status_code=422, detail=result_ctx.errors)
 
     proposal_id = result_ctx.proposal_draft["proposal_id"]
     return {"proposalId": proposal_id}

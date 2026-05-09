@@ -227,12 +227,16 @@ def test_list_proposals_not_found():
 
 # ── validation ────────────────────────────────────────────────────────────────
 
+def error_fields(r) -> list[str]:
+    return [e["field"] for e in r.json()["detail"]]
+
+
 def test_validation_missing_customer_name():
     bad = {**VALID_REPORT, "customer": {"name": "", "email": "x@x.com"}}
     report_id = create_report(bad)
     r = httpx.post(f"{BASE}/reports/{report_id}/generate-proposal", timeout=35)
     assert r.status_code == 422
-    assert "customer.name" in r.json()["detail"]
+    assert "customer.name" in error_fields(r)
 
 
 def test_validation_empty_findings():
@@ -240,7 +244,7 @@ def test_validation_empty_findings():
     report_id = create_report(bad)
     r = httpx.post(f"{BASE}/reports/{report_id}/generate-proposal", timeout=35)
     assert r.status_code == 422
-    assert "findings" in r.json()["detail"]
+    assert "findings" in error_fields(r)
 
 
 def test_validation_invalid_severity():
@@ -251,7 +255,19 @@ def test_validation_invalid_severity():
     report_id = create_report(bad)
     r = httpx.post(f"{BASE}/reports/{report_id}/generate-proposal", timeout=35)
     assert r.status_code == 422
-    assert "severity" in r.json()["detail"]
+    assert any("severity" in f for f in error_fields(r))
+
+
+def test_validation_error_is_list_of_objects():
+    bad = {**VALID_REPORT, "customer": {"name": "", "email": ""}}
+    report_id = create_report(bad)
+    r = httpx.post(f"{BASE}/reports/{report_id}/generate-proposal", timeout=35)
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert isinstance(detail, list)
+    for err in detail:
+        assert "field" in err
+        assert "message" in err
 
 
 # ── unknown finding fallback ───────────────────────────────────────────────────
