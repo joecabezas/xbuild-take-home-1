@@ -278,3 +278,23 @@ Any worker can short-circuit the pipeline by publishing directly to `reply_{job_
 **If AI replaced deterministic matching:** Only `MatcherWorker` changes. Its queue contract is identical — it receives a context with `report_input` and publishes one with `matches`. The `matchReason` field already accommodates free-text LLM reasoning. Every other worker, the gateway, and the DB schema are unaffected.
 
 **Proposal versioning/history:** Already implemented. The `proposals` table is append-only with a `version` column. `GET /reports/:id/proposals` returns the full history. Each `prop_` ID permanently addresses a specific version.
+
+---
+
+## Tradeoffs
+
+### Code organization
+
+Each worker is currently a module within this repository for simplicity. In a production setup, each worker should live in its own repository to allow independent versioning, deployment, and ownership by separate teams.
+
+### Matching strategy
+
+The initial implementation used a keyword-based scoring system: each catalog item carried a list of trigger words, and the matcher counted hits against the finding's title and notes. This approach is brittle — it requires manually maintaining keyword lists, fails on synonyms and varied field language, and is prone to ambiguous matches when keywords overlap across catalog items.
+
+The `semantic-matcher` branch replaces this with a local embedding model (`all-MiniLM-L6-v2` via `sentence-transformers`). Catalog descriptions are embedded once at startup and stored as a matrix. At match time, the finding text is embedded and scored against all catalog items using cosine similarity. The highest-scoring item above a configurable threshold wins; otherwise the request falls back to `general.assessment_tm`.
+
+Key properties of the semantic approach:
+
+- **Fully local** — the model runs inside its own Docker container with no external API calls. The model is baked into the image at build time so there is no download on startup.
+- **Deterministic** — the same input always produces the same embedding vector and therefore the same match. Ties are resolved by catalog order (the behavior of `np.argmax`), so output is stable across runs.
+- **Configurable** — the similarity threshold (default `0.35`) and model name are both set via environment variables (`SIMILARITY_THRESHOLD`, `MATCHER_MODEL`). The threshold was calibrated by scoring all known-good test inputs to find the minimum score of a correct match, then verifying that genuinely unrelated inputs fall below it.
