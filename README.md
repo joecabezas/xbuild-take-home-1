@@ -2,47 +2,201 @@
 
 A backend service that accepts field reports from a mobile app and generates structured repair proposal drafts via a deterministic, distributed pipeline.
 
-## Running
+---
+
+## Starting the service
+
+**Requires:** Docker and Docker Compose.
 
 ```bash
+git clone <repo-url>
+cd take_home_1
 docker-compose up --build
 ```
 
-API available at `http://localhost:8000`. RabbitMQ management UI at `http://localhost:15672` (guest/guest).
+First build takes ~2 minutes (downloads base images, installs dependencies). Subsequent starts are fast.
 
-### Quick test
+When ready you will see:
+```
+gateway-1  | INFO:     Application startup complete.
+gateway-1  | INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+| Service | URL |
+|---|---|
+| API | http://localhost:8000 |
+| Interactive API docs | http://localhost:8000/docs |
+| RabbitMQ management UI | http://localhost:15672 (guest / guest) |
+
+To stop: `docker-compose down`
+
+---
+
+## API walkthrough
+
+### 1. Submit a field report
 
 ```bash
-# 1. Submit a field report
 curl -s -X POST http://localhost:8000/reports \
   -H "Content-Type: application/json" \
   -d '{
-    "customer": {"name": "Jane Smith", "email": "jane@example.com"},
-    "property": {"address": "123 Main St, Austin, TX", "type": "single_family"},
+    "customer": {
+      "name": "Jane Smith",
+      "email": "jane@example.com"
+    },
+    "property": {
+      "address": "123 Main St, Austin, TX",
+      "type": "single_family"
+    },
     "findings": [
-      {"title": "Missing shingles", "severity": "high", "notes": "Visible damage on north slope", "photos": ["photo-1.jpg", "photo-2.jpg"]},
-      {"title": "Clogged gutters", "severity": "medium", "notes": "", "photos": []}
+      {
+        "title": "Missing shingles",
+        "severity": "high",
+        "notes": "Visible damage on north slope",
+        "photos": ["photo-1.jpg", "photo-2.jpg"]
+      },
+      {
+        "title": "Clogged gutters",
+        "severity": "medium",
+        "notes": "",
+        "photos": []
+      }
     ]
   }'
-# → {"reportId": "rpt_..."}
-
-# 2. Generate a proposal (runs the async pipeline)
-curl -s -X POST http://localhost:8000/reports/rpt_.../generate-proposal
-# → {"proposalId": "prop_..."}
-
-# 3. Fetch the proposal
-curl -s http://localhost:8000/proposals/prop_...
-
-# 4. View proposal version history for a report
-curl -s http://localhost:8000/reports/rpt_.../proposals
 ```
 
-### Running tests (no Docker needed)
+```json
+{"reportId": "rpt_9c713301319f"}
+```
+
+---
+
+### 2. Retrieve the stored report
 
 ```bash
-pip install -e shared/ pika pytest fastapi pydantic
-pytest tests/ -v
+curl -s http://localhost:8000/reports/rpt_9c713301319f
 ```
+
+---
+
+### 3. Generate a proposal
+
+Triggers the async pipeline (validator → normalizer → matcher → pricer → assembler) over RabbitMQ. Responds when the pipeline completes (typically < 1 second).
+
+```bash
+curl -s -X POST http://localhost:8000/reports/rpt_9c713301319f/generate-proposal
+```
+
+```json
+{"proposalId": "prop_1f9ec4a300c8"}
+```
+
+---
+
+### 4. Fetch the proposal
+
+```bash
+curl -s http://localhost:8000/proposals/prop_1f9ec4a300c8
+```
+
+```json
+{
+  "proposalId": "prop_1f9ec4a300c8",
+  "reportId": "rpt_9c713301319f",
+  "version": 1,
+  "summary": "Exterior repairs for 123 Main St, Austin, TX",
+  "lineItems": [
+    {
+      "code": "roof.patch_shingles",
+      "category": "roofing",
+      "description": "Replace missing/damaged shingles in affected areas.",
+      "estimatedCost": 1400,
+      "sourceFinding": "Missing shingles",
+      "matchReason": "Matched keywords: shingle, shingles, missing"
+    },
+    {
+      "code": "gutters.clean_flush",
+      "category": "gutters",
+      "description": "Clean and flush gutters and downspouts.",
+      "estimatedCost": 250,
+      "sourceFinding": "Clogged gutters",
+      "matchReason": "Matched keywords: gutter, clog, clogged"
+    }
+  ],
+  "total": 1650
+}
+```
+
+---
+
+### 5. Re-generate a proposal (versioning)
+
+Calling generate-proposal again on the same report creates a new immutable version. The previous proposal remains accessible by its ID.
+
+```bash
+curl -s -X POST http://localhost:8000/reports/rpt_9c713301319f/generate-proposal
+# → {"proposalId": "prop_cc0ed9b49176"}  (version 2)
+```
+
+### 6. View proposal history for a report
+
+```bash
+curl -s http://localhost:8000/reports/rpt_9c713301319f/proposals
+```
+
+```json
+[
+  {"proposalId": "prop_1f9ec4a300c8", "version": 1, "createdAt": "2026-05-09T01:03:04Z", "total": 1650},
+  {"proposalId": "prop_cc0ed9b49176", "version": 2, "createdAt": "2026-05-09T01:03:15Z", "total": 1650}
+]
+```
+
+---
+
+### Validation errors
+
+The pipeline validates input before processing. Invalid reports return HTTP 422:
+
+```bash
+# Missing customer name
+curl -s -X POST http://localhost:8000/reports \
+  -H "Content-Type: application/json" \
+  -d '{"customer": {"name": "", "email": "x@x.com"}, "property": {"address": "1 St", "type": "house"}, "findings": []}' \
+  | xargs -I{} sh -c 'echo "{}"'
+# Report is stored, validation fires on generate-proposal:
+
+curl -s -X POST http://localhost:8000/reports/rpt_.../generate-proposal
+# → HTTP 422: {"detail": "customer.name is required; findings must be a non-empty array"}
+```
+
+Severity values must be `low`, `medium`, or `high`. Any other value returns 422.
+
+---
+
+### Scaling a worker
+
+```bash
+docker-compose up --scale worker-matcher=3
+```
+
+---
+
+## Running tests
+
+### Unit + integration tests (no Docker required)
+
+```bash
+pip install httpx pika pytest fastapi pydantic
+python -m pytest tests/ --ignore=tests/test_e2e.py -v
+```
+
+### End-to-end tests (requires the stack to be running)
+
+```bash
+python -m pytest tests/test_e2e.py -v
+```
+
+The e2e tests skip automatically if the gateway is not reachable.
 
 ---
 
@@ -80,14 +234,14 @@ gateway → [validate] → ValidatorWorker
                                    → [match] → MatcherWorker
                                              → [price] → PricerWorker
                                                         → [assemble] → AssemblerWorker
-                                                                      → [results] → gateway
+                                                                      → [reply_{job_id}] → gateway
 ```
 
 The `PipelineContext` dataclass is the message body — it carries all state as a JSON-serializable dict. Each worker reads from it, enriches it, and publishes it to the next queue. Workers never share memory or call each other directly.
 
 The gateway uses the RabbitMQ **request-reply pattern**: it declares a temporary `reply_{job_id}` queue per request, publishes the initial context, and waits up to 30 seconds for a result. This keeps the gateway stateless.
 
-Any worker can short-circuit the pipeline by publishing directly to `results` with `status=failed` — the gateway surfaces this as an HTTP error.
+Any worker can short-circuit the pipeline by publishing directly to `reply_{job_id}` with `status=failed` — the gateway surfaces this as HTTP 422.
 
 ### How this evolves
 
