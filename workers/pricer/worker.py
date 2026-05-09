@@ -47,7 +47,7 @@ def callback(ch, method, _properties, body):
         ctx.error = str(e)
         ch.basic_publish(
             exchange="",
-            routing_key="results",
+            routing_key=f"reply_{ctx.job_id}",
             body=ctx.to_json(),
             properties=pika.BasicProperties(delivery_mode=2),
         )
@@ -57,7 +57,7 @@ def callback(ch, method, _properties, body):
 if __name__ == "__main__":
     conn = get_connection()
     ch = conn.channel()
-    for q in [CONSUME_QUEUE, PUBLISH_QUEUE, "results"]:
+    for q in [CONSUME_QUEUE, PUBLISH_QUEUE]:
         declare_queue(ch, q)
     ch.basic_qos(prefetch_count=1)
     ch.basic_consume(queue=CONSUME_QUEUE, on_message_callback=callback)

@@ -1,26 +1,32 @@
+import asyncio
 import uuid
-import pika
+import os
+import aio_pika
 from fastapi import APIRouter, HTTPException
 from shared.context import PipelineContext
-from shared.queue_client import get_connection, declare_queue
 from shared.repos.reports_repo import get_report
-from shared.repos.proposals_repo import get_proposal, get_latest_proposal, list_proposals
-from gateway.schemas import ProposalCreatedResponse
+from shared.repos.proposals_repo import get_proposal, list_proposals
+from schemas import ProposalCreatedResponse
 
 router = APIRouter()
 
-PIPELINE_TIMEOUT = 30  # seconds
+PIPELINE_TIMEOUT = 30
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
+
+
+async def get_amqp_connection():
+    return await aio_pika.connect_robust(f"amqp://guest:guest@{RABBITMQ_HOST}/")
 
 
 @router.post("/reports/{report_id}/generate-proposal",
              response_model=ProposalCreatedResponse, status_code=202)
-def generate_proposal(report_id: str):
+async def generate_proposal(report_id: str):
     report = get_report(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
     job_id = uuid.uuid4().hex
-    reply_queue = f"reply_{job_id}"
+    reply_queue_name = f"reply_{job_id}"
 
     ctx = PipelineContext(
         job_id=job_id,
@@ -28,36 +34,38 @@ def generate_proposal(report_id: str):
         raw_input=report,
     )
 
-    mq_conn = get_connection()
-    ch = mq_conn.channel()
-    declare_queue(ch, "validate")
-    ch.queue_declare(queue=reply_queue, durable=False, exclusive=True, auto_delete=True)
+    result_future: asyncio.Future = asyncio.get_event_loop().create_future()
 
-    ch.basic_publish(
-        exchange="",
-        routing_key="validate",
-        body=ctx.to_json(),
-        properties=pika.BasicProperties(
-            delivery_mode=2,
-            reply_to=reply_queue,
-        ),
-    )
+    connection = await get_amqp_connection()
+    try:
+        channel = await connection.channel()
 
-    result_ctx: PipelineContext | None = None
+        await channel.declare_queue("validate", durable=True)
+        reply_queue = await channel.declare_queue(
+            reply_queue_name, durable=False, exclusive=True, auto_delete=True
+        )
 
-    def on_result(ch, method, _properties, body):
-        nonlocal result_ctx
-        result_ctx = PipelineContext.from_json(body)
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-        ch.stop_consuming()
+        async def on_result(message: aio_pika.IncomingMessage):
+            async with message.process():
+                if not result_future.done():
+                    result_future.set_result(PipelineContext.from_json(message.body))
 
-    ch.basic_consume(queue=reply_queue, on_message_callback=on_result)
-    mq_conn.process_data_events(time_limit=PIPELINE_TIMEOUT)
+        await reply_queue.consume(on_result)
 
-    mq_conn.close()
+        await channel.default_exchange.publish(
+            aio_pika.Message(
+                body=ctx.to_json(),
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            ),
+            routing_key="validate",
+        )
 
-    if result_ctx is None:
-        raise HTTPException(status_code=504, detail="Pipeline timed out")
+        try:
+            result_ctx = await asyncio.wait_for(result_future, timeout=PIPELINE_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="Pipeline timed out")
+    finally:
+        await connection.close()
 
     if result_ctx.status == "failed":
         status = 422 if "required" in (result_ctx.error or "") else 500

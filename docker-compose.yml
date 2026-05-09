@@ -28,7 +28,9 @@ services:
   worker-validator:
     build:
       context: .
-      dockerfile: workers/validator/Dockerfile
+      dockerfile: Dockerfile.worker
+      args:
+        WORKER: validator
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -39,7 +41,9 @@ services:
   worker-normalizer:
     build:
       context: .
-      dockerfile: workers/normalizer/Dockerfile
+      dockerfile: Dockerfile.worker
+      args:
+        WORKER: normalizer
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -50,7 +54,9 @@ services:
   worker-matcher:
     build:
       context: .
-      dockerfile: workers/matcher/Dockerfile
+      dockerfile: Dockerfile.worker
+      args:
+        WORKER: matcher
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -61,7 +67,9 @@ services:
   worker-pricer:
     build:
       context: .
-      dockerfile: workers/pricer/Dockerfile
+      dockerfile: Dockerfile.worker
+      args:
+        WORKER: pricer
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -72,7 +80,9 @@ services:
   worker-assembler:
     build:
       context: .
-      dockerfile: workers/assembler/Dockerfile
+      dockerfile: Dockerfile.worker
+      args:
+        WORKER: assembler
     depends_on:
       rabbitmq:
         condition: service_healthy

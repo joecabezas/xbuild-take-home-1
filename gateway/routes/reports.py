@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from gateway.schemas import FieldReportRequest, ReportCreatedResponse
+from schemas import FieldReportRequest, ReportCreatedResponse
 from shared.repos.reports_repo import save_report, get_report
 
 router = APIRouter()

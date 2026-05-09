@@ -19,8 +19,15 @@ def process(ctx: PipelineContext) -> PipelineContext:
     draft = ProposalDraft(
         report_id=ctx.report_id,
         summary=f"Exterior repairs for {address}",
-        line_items=[PricedLineItem(**{k: v for k, v in item.items() if k != "finding_id"})
-                    for item in items],
+        line_items=[PricedLineItem(
+                        finding_id=item["finding_id"],
+                        source_finding=item["source_finding"],
+                        code=item["code"],
+                        category=item["category"],
+                        description=item["description"],
+                        estimated_cost=item["estimated_cost"],
+                        match_reason=item["match_reason"],
+                    ) for item in items],
         total=total,
     )
 
@@ -32,11 +39,12 @@ def process(ctx: PipelineContext) -> PipelineContext:
 
 def callback(ch, method, _properties, body):
     ctx = PipelineContext.from_json(body)
+    reply_queue = f"reply_{ctx.job_id}"
     try:
         ctx = process(ctx)
         ch.basic_publish(
             exchange="",
-            routing_key="results",
+            routing_key=reply_queue,
             body=ctx.to_json(),
             properties=pika.BasicProperties(delivery_mode=2),
         )
@@ -46,7 +54,7 @@ def callback(ch, method, _properties, body):
         ctx.error = str(e)
         ch.basic_publish(
             exchange="",
-            routing_key="results",
+            routing_key=reply_queue,
             body=ctx.to_json(),
             properties=pika.BasicProperties(delivery_mode=2),
         )
@@ -57,8 +65,7 @@ if __name__ == "__main__":
     init_schema()
     conn = get_connection()
     ch = conn.channel()
-    for q in [CONSUME_QUEUE, "results"]:
-        declare_queue(ch, q)
+    declare_queue(ch, CONSUME_QUEUE)
     ch.basic_qos(prefetch_count=1)
     ch.basic_consume(queue=CONSUME_QUEUE, on_message_callback=callback)
     print(f"[assembler] waiting for messages on '{CONSUME_QUEUE}'")
