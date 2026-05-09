@@ -1,0 +1,87 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - DATABASE_PATH=/data/proposals.db
+    volumes:
+      - db_data:/data
+
+  worker-validator:
+    build:
+      context: .
+      dockerfile: workers/validator/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    restart: on-failure
+
+  worker-normalizer:
+    build:
+      context: .
+      dockerfile: workers/normalizer/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    restart: on-failure
+
+  worker-matcher:
+    build:
+      context: .
+      dockerfile: workers/matcher/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    restart: on-failure
+
+  worker-pricer:
+    build:
+      context: .
+      dockerfile: workers/pricer/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    restart: on-failure
+
+  worker-assembler:
+    build:
+      context: .
+      dockerfile: workers/assembler/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - DATABASE_PATH=/data/proposals.db
+    volumes:
+      - db_data:/data
+    restart: on-failure
+
+volumes:
+  db_data:

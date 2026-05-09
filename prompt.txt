@@ -1,0 +1,49 @@
+I am implementing a take-home assignment for a job interview, the material from the employer can
+be found at backend_takehome_proposal_engine.md, lets implement a small backend service that fulfill
+the requirement, lets start first creating a CLAUDE.md file, then, after approval, lets build a plan
+and implement them step by step
+
+here are some requirements on my end:
+use python, sqlite
+
+- lets think of a way to structure the transformation pipeline: I am thinking in a orchetrator
+  architecture, and the input is processed by multiple workers that run step by step until it builds
+  the output, the idea is that more steps can be added in the future, one good way to demonstrate
+  a solid understanding of this kind of services, is to build this as a series of services which
+  each run in its own docker container, usually each step has it's own repository but in this case
+  lets just organize this in different folders, also, be free to propose a better approach and way
+  to orchestrate this
+
+regarding data models, our service will receive a field report, which contains customer info,
+property info, and a list of findings, each finding is also a piece of data which contains notes
+and photos
+
+more details are in the markdown file from employer
+
+regarding technologies lets also think about storage, usually, we do store images in s3, but this
+is an exercise, lets do local storage in a folder, or even binary store in DB since it needs to be
+accessed by a distributed architecture, also, the markdown mentioned that no actual binary is stored,
+just strings, so assume images to be strings
+
+for the API, the markdown stipulates the bare minimum API functionality, lets also implement this,
+extract the data model from those examples
+
+in the deliverables section, I think we cover most, except for we have not thought about
+versioning/history of proposals, lets build the system with this in mind
+
+---
+
+Architecture decisions made during planning:
+
+- Each pipeline worker runs in its own Docker container (validator, normalizer, matcher, pricer, assembler)
+- Workers communicate via RabbitMQ (chosen over Redis for AMQP semantics, dead-lettering, and management UI)
+- The gateway uses a request-reply pattern over RabbitMQ: publishes to "validate" queue, waits on a
+  per-job reply queue for the completed PipelineContext
+- SQLite is shared via a named Docker volume, mounted only into gateway and assembler (the only two
+  containers that touch the DB)
+- Proposals are append-only / immutable: each generate-proposal call creates a new version row,
+  old proposals remain forever retrievable — versioning is built-in by design, not a future concern
+- A shared/ Python package is installed into every container, containing PipelineContext,
+  queue_client, models, db, and repos — single source of truth, no duplication
+- Photos are strings throughout (no binary storage anywhere)
+- The RabbitMQ management UI at :15672 lets the interviewer watch messages flow through queues
