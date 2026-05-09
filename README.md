@@ -10,7 +10,7 @@ A backend service that accepts field reports from a mobile app and generates str
 
 ```bash
 git clone <repo-url>
-cd take_home_1
+cd xbuild-take-home-1
 docker-compose up --build
 ```
 
