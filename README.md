@@ -8,13 +8,12 @@ A backend service that accepts field reports from a mobile app and generates str
 
 **Requires:** Docker and Docker Compose.
 
+-- are this steps correct?
 ```bash
 git clone <repo-url>
 cd take_home_1
 docker-compose up --build
 ```
-
-First build takes ~2 minutes (downloads base images, installs dependencies). Subsequent starts are fast.
 
 When ready you will see:
 ```
@@ -166,6 +165,7 @@ curl -s -X POST http://localhost:8000/reports \
 # Report is stored, validation fires on generate-proposal:
 
 curl -s -X POST http://localhost:8000/reports/rpt_.../generate-proposal
+-- lets change this to return a list of errors instead of a single string, and include which field is invalid. This is more extensible as we add more validation rules.
 # → HTTP 422: {"detail": "customer.name is required; findings must be a non-empty array"}
 ```
 
@@ -185,6 +185,7 @@ docker-compose up --scale worker-matcher=3
 
 ### Unit + integration tests (no Docker required)
 
+-- are this instructions correct? do we need to set up a virtualenv or anything first?
 ```bash
 pip install httpx pika pytest fastapi pydantic
 python -m pytest tests/ --ignore=tests/test_e2e.py -v
@@ -192,6 +193,7 @@ python -m pytest tests/ --ignore=tests/test_e2e.py -v
 
 ### End-to-end tests (requires the stack to be running)
 
+-- same as above, do we need to set up a virtualenv or anything first?
 ```bash
 python -m pytest tests/test_e2e.py -v
 ```
@@ -218,6 +220,7 @@ The two are linked by `report_id` but intentionally separate: a report is ground
 
 **Proposals are append-only.** Each call to `POST /reports/:id/generate-proposal` inserts a new proposal row with an incrementing version number. Old proposals remain retrievable by their ID. The `GET /reports/:id/proposals` endpoint lists the full history.
 
+-- I dont like this, lets move the catalog to json or something, so non-devs can edit it without a deploy
 **The catalog is code, not data.** The 10 catalog items and their keyword trigger lists live in `workers/matcher/catalog.py`. Changing the catalog requires a deploy, but the matching rules are version-controlled alongside the code that uses them.
 
 **Photos are strings throughout.** No binary storage, no S3 — a photo reference is just a string in the findings array. The photo count affects pricing (via the photo modifier), nothing more.
@@ -228,6 +231,7 @@ The two are linked by `report_id` but intentionally separate: a report is ground
 
 Each pipeline step runs as an independent Docker container consuming from its own RabbitMQ queue:
 
+-- lets change this to a mermaid diagram
 ```
 gateway → [validate] → ValidatorWorker
                      → [normalize] → NormalizerWorker
